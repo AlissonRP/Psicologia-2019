@@ -682,7 +682,7 @@ fitt2=fit2 %>%
   p(0.807) 
   
 
-  
+
 
 
 
@@ -705,8 +705,11 @@ fitt1=fit1 %>%
 
 
 \subsection{Regressão Logística}
-A regressão logistica foi necessário tomar como $0.808$ o ponto corte para a previsão ser da categória Retido, pois como já dito existem muitas observações para essa categoria. Ajustando no conjunto de treino obtem-se como única variável não significativa a dummie Nacionalidade  Estrangeira que tem como p-valor associado `r round(tidy(fit1)[4,5],3)`
+A regressão logistica foi necessário tomar como $0.808$ o ponto corte para a previsão ser da categória Retido, pois como já dito existem muitas observações para essa categoria. Ajustando no conjunto de treino obtem-se como única variável não significativa a dummie Nacionalidade  Estrangeira que tem como p-valor associado `r round(tidy(fit1)[4,5],3)`, o seguinte gráfico ilustra o ajuste sobre o modelo logístico, indicando que está bem ajustado inferencialmente dado que todos resíduos estão dentro da banda simulada.
 
+```{r}
+hnp::hnp(fit1$fit$fit$fit)
+```
 
 
 
@@ -718,15 +721,14 @@ fitt1 %>%
   conf_table(0.5,"Matriz de Confusão com ponte de corte 0.5")
 
 ```
-Todas as previsões foram Retido!!, ou seja o modelo está completamente viesado, e possui uma alta acurácia pois a maior parte dos estudantes permaneceu no curso. Então é necessário ajustarmos esse ponto de corte, por otimização da área da curva roc ficamos com $0.808$ , assim obtem-se area sobre a curva roc `r fitt1 %>% p(0.808) %>% roc_auc(sit,.pred_Retido) %>% .[1,3]`  e matriz de confusão
+Todas as previsões foram Retido!!, ou seja o modelo está completamente viesado, e possui uma alta acurácia pois a maior parte dos estudantes permaneceu no curso. Então é necessário ajustarmos esse ponto de corte, por otimização da área da curva roc ficamos com $0.808$ , assim obtem-se area sobre a curva roc `r fitt1 %>% p(0.808) %>% roc_auc(sit,.pred_Retido) %>% .[1,3] %>% round(3)`  e matriz de confusão
 
 ```{r}
 fitt1 %>% 
   conf_table(0.808,"Matriz de Confusão com ponte de corte 0.808")
 ```
-```{r}
 
-```
+
 
 
 
