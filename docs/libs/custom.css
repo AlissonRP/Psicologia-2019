@@ -1,0 +1,6 @@
+.navbar, [data-toggle=tab], .navbar-brand  {color:white; }
+
+.navbar-logo img {
+    position: absolute;
+    right: 0px;
+}

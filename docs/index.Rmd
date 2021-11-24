@@ -1,0 +1,632 @@
+---
+title: "Psicologia - Análise Descritiva"
+output: 
+  flexdashboard::flex_dashboard:
+    logo: "libs/Git.png"
+    css: 'libs/custom.css'
+    favicon: 'libs/Psico.png'
+    theme:
+      version: 4
+      primary: "#75002B"
+      navbar-bg: "#75002B"
+---
+
+<script>
+$('.navbar-logo').wrap('<a href="https://github.com/AlissonRP/Psicologia-2019">');
+</script>
+
+```{r setup, include=FALSE, context = "server"}
+knitr::opts_chunk$set(echo = F)
+library(flexdashboard)
+library(brazilmaps)
+library(tidyverse)
+library(readxl)
+library(sqldf)
+library(plotly)
+library(kableExtra)
+library(Rcpp)
+library(geojsonio)
+library(leaflet)
+theme_set(theme_minimal())
+scale_fill_discrete = \(...) scale_fill_brewer(... , palette="Set2")
+gc()
+memory.limit (9999999999)
+rm(list=ls())
+gc()
+df=read_csv("https://raw.githubusercontent.com/AlissonRP/Psicologia-2019/master/ALUNO_PSICO2019.csv")
+df = df |> 
+    mutate(NU_IDADE=as.integer(NU_IDADE),CO_IES= as.integer(CO_IES),
+           Classe_Idade=cut(NU_IDADE,breaks=c(15,18,21,25,30,65,90),
+                     include.lowest = TRUE))
+df=df |> 
+  filter(NU_ANO_INGRESSO==2019,TP_SITUACAO!="7") |> 
+  mutate(NU_IDADE=as.factor(NU_IDADE)) |> 
+  mutate_if(is.double,as.factor) |> 
+  select(-X1,-IN_INGRESSO_CONVENIO_PECG) |> 
+  rename(Turno=TP_TURNO,Sexo=TP_SEXO,Idade=NU_IDADE,
+         Nacionalidade=TP_NACIONALIDADE,Ingresso=NU_ANO_INGRESSO,
+         Situação=TP_SITUACAO,`Apoio social`=IN_APOIO_SOCIAL, 
+         `Reserva de Vagas` = IN_RESERVA_VAGAS, 
+         Deficiência = IN_DEFICIENCIA) |>
+  mutate(Sexo=fct_recode(Sexo,"Feminino"="1","Masculino"="2"),
+         Turno=fct_recode(Turno,"Matutino"="1","Vespertino"="2",
+                          "Noturno"="3","Integral"="4"),
+         Nacionalidade=fct_recode(Nacionalidade,"Brasileira"="1",
+                            "Exterior/Naturalizado"="2","Estrangeira"="3"),
+         Situação=fct_collapse(Situação,Evadido=c("5","4"),
+                               Retido=c("2","3","6")),
+         `Apoio social`=fct_recode(`Apoio social`,"Não"= "0","Sim"="1"),
+         `Reserva de Vagas`=fct_recode(`Reserva de Vagas`,
+                                       "Não"="0","Sim"="1"),
+         Deficiência = fct_recode(Deficiência,"Não"= "0","Sim"="1", "Sem resposta"="9"))
+
+IES <- read_delim('../IES.CSV',delim=",")
+IES = IES |>
+  rename(Codigo = CO_IES)
+attach(IES)
+df <- df |> 
+  inner_join(IES, by = c('CO_IES' = 'Codigo'))
+
+df <- df |> 
+  mutate(CO_UF1 = as.factor(CO_UF), CO_REGIAO1 = as.factor(CO_REGIAO)) |>
+  mutate(Mobilidade = ifelse(CO_UF_NASCIMENTO == CO_UF, 
+                               "Mesmo estado", "Estado diferentes")) |> 
+  mutate(UF = fct_recode(CO_UF1, "Rondônia" = "11", "Acre" = "12", 
+                         "Amazonas" = "13", "Roraima" = "14", "Pará" = "15",
+                         "Amapá" = "16", "Tocantins" = "17",
+                         "Maranhão" = "21","Piauí" = "22",
+                         "Ceará" = "23","Rio Grande do Norte" = "24",
+                         "Paraíba" = "25","Pernambuco" = "26",
+                         "Alagoas" = "27","Sergipe" = "28","Bahia" = "29",
+                         "Minas Gerais" = "31","Espírito Santo" = "32",
+                         "Rio de Janeiro" = "33","São Paulo" = "35",
+                         "Paraná" = "41","Santa Catarina" = "42",
+                         "Rio Grande do Sul" = "43",
+                         "Mato Grosso do Sul" = "50","Mato Grosso" = "51",
+                         "Goiás" = "52","Distrito Federal" = "53" ), 
+         Região = fct_recode(CO_REGIAO1,"Norte"= "1", "Nordeste" = "2",
+                             "Sudeste"="3","Sul"="4",
+                             "Centro-Oeste" = "5"),
+         UF1 = fct_recode(CO_UF1, "RO" = "11", "AC" = "12", 
+                         "AM" = "13", "RR" = "14", "PA" = "15",
+                         "AP" = "16", "TO" = "17",
+                         "MA" = "21","PI" = "22",
+                         "CE" = "23","RN" = "24",
+                         "PB" = "25","PE" = "26",
+                         "AL" = "27","SE" = "28","BA" = "29",
+                         "MG" = "31","ES" = "32",
+                         "RJ" = "33","SP" = "35",
+                         "PR" = "41","SC" = "42",
+                         "RS" = "43",
+                         "MS" = "50","MT" = "51",
+                         "GO" = "52", "DF" = "53")) |>
+             select(-CO_UF1, -CO_REGIAO1, -X1, -CO_UF_NASCIMENTO)
+
+
+grafico=function(df,v1,v2){
+df |> 
+  ggplot(aes({{v1}},fill={{v2}})) + 
+  geom_bar(position = "dodge")+
+  scale_fill_brewer(palette = "Set2")+
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank()) +
+    labs(x=df|>
+         select({{v1}}) |> 
+         names(), y='Quantidade de alunos')
+}
+
+```
+
+```{r}
+
+query1 <- sqldf("SELECT Região,CO_REGIAO, COUNT(*) FROM df WHERE Situação='Evadido' GROUP BY CO_REGIAO")
+query2 <- sqldf("SELECT Região,CO_REGIAO, COUNT(*) FROM df WHERE Situação='Retido' GROUP BY CO_REGIAO")
+df2 <- data.frame(query1)
+df2 <- df2 |> 
+  mutate(Evadido = query1$`COUNT(*)`, n = query2$`COUNT(*)` + query1$`COUNT(*)`)
+
+row.names(df2) <- df2$CO_REGIAO
+df2 <- df2 |>
+arrange(CO_REGIAO)
+
+df2 <- df2 |>
+  mutate(CO_REGIAO = as.double(CO_REGIAO)) |>
+  mutate(EvasãoPercentual = round((Evadido/n*100),2)) |>
+  mutate(Região = query2$Região)
+
+query3 <- sqldf("SELECT UF, CO_UF,UF1, Situação, COUNT(*) FROM df 
+                WHERE Situação='Evadido' GROUP BY CO_UF")
+query4 <- sqldf("SELECT UF, CO_UF, UF1, Situação, COUNT(*) FROM df GROUP BY CO_UF")
+df3 <- data.frame(query3)
+df3 <- df3 |> 
+  mutate(Evadido = query3$`COUNT(*)`, n = query4$`COUNT(*)`, 
+         CO_UF = query4$CO_UF)
+df3 <- df3 |>
+  mutate(CO_UF = as.double(CO_UF)) |>
+  mutate(EvasãoPercentual = round((Evadido/n*100),2)) |>
+  mutate(UF = query4$UF)
+
+row.names(df3) <- df3$CO_UF
+df3 <- df3 |>
+arrange(CO_UF)
+
+```
+
+# Variáveis dicotômicas
+
+Row {.tabset}
+-----------------------------------------------------------------------
+
+### Deficiência x situação
+
+```{r}
+g4 <- df |> 
+  subset(Deficiência != "Sem resposta") |>
+  grafico(Deficiência,Situação)
+  ggplotly(g4)
+```
+
+### Proporcionalidade
+
+```{r}
+
+g5 <- df |> 
+  subset(Deficiência != "Sem resposta") |>
+  ggplot(aes(Situação, fill=Situação)) + 
+  geom_bar()+
+  scale_fill_brewer(palette = "Set2")+
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank(), legend.position="none") +
+  facet_wrap(~Deficiência, ncol = 1, scales="free_y") +
+    labs(x=df|>
+         select(Situação) |> 
+         names(), y='Quantidade de alunos')
+ggplotly(g5)
+```
+
+### Reserva de Vagas x Situação
+
+```{r}
+g3 <- df |>
+grafico(`Reserva de Vagas`,Situação)
+ggplotly(g3)
+```
+
+### Proporcionalidade
+
+```{r}
+
+g6 <- df |> 
+  ggplot(aes(Situação, fill=Situação)) + 
+  geom_bar()+
+  scale_fill_brewer(palette = "Set2")+
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank(), legend.position="none") +
+  facet_wrap(~`Reserva de Vagas`, ncol = 1, scales="free_y") +
+    labs(x=df|>
+         select(Situação) |> 
+         names(), y='Quantidade de alunos')
+ggplotly(g6)
+```
+
+Row {.tabset}
+-----------------------------------------------------------------------
+
+### Sexo x Situação
+
+```{r}
+g1 <- df |>
+grafico(Sexo, Situação)
+ggplotly(g1)
+```
+
+### Mobilidade x Situação
+
+```{r}
+g11 <- df |> subset(!is.na(Mobilidade)) |>
+grafico(Mobilidade,Situação)
+ggplotly(g11)
+
+```
+
+### Apoio Social x Situação 
+
+```{r}
+g2 <- df |>
+grafico(`Apoio social`,Situação)
+ggplotly(g2)
+```
+
+
+# Variáveis Politômicas
+Row {.tabset}
+-----------------------------------------------------------------------
+
+### Turno x Situação
+
+```{r}
+g7 <- df |>
+grafico(Turno,Situação)
+ggplotly(g7)
+```
+
+
+
+Row {.tabset}
+-----------------------------------------------------------------------
+
+### Situação x Idade classificadas
+
+```{r}
+g9 <- df |>
+grafico(Classe_Idade,Situação)
+ggplotly(g9)
+```
+
+### Histograma de Situação x Idade
+
+```{r}
+g8 <- df |>
+  ggplot(aes(x=as.double(Idade), fill=Situação)) +
+  geom_histogram(binwidth=5) +  
+  scale_fill_brewer(palette = "Set2")+
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank()) +
+    labs(y='Quantidade de alunos', x = 'Idade')
+ggplotly(g8)
+```
+
+
+### Boxplot Situação x Idade
+
+```{r}
+g10 <- df |>
+  ggplot(aes(x=Situação, y=Idade, fill = Situação)) +
+  geom_boxplot() +
+    scale_fill_brewer(palette = "Set2") +
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank(), legend.position="none",
+     axis.text.y=element_blank(),axis.ticks=element_blank()) +
+  labs(x='Situação', y='Idade') 
+ggplotly(g10)
+```
+
+
+# Variáveis Territoriais 
+
+Row {.tabset}
+-----------------------------------------------------------------------
+
+### Região x Situação
+
+```{r}
+g13 <- df |>
+  mutate(Região = Região |> fct_infreq()) |> 
+grafico(Região,Situação)
+ggplotly(g13)
+```
+
+### Proporcionalidade
+
+```{r}
+g12 <- df |> 
+  ggplot(aes(Situação, fill=Situação)) + 
+  geom_bar()+
+  scale_fill_brewer(palette = "Set2")+
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank(), legend.position="none") +
+  facet_wrap(~Região, ncol = 1, scales="free_y") +
+    labs(x=df|>
+         select(Situação) |> 
+         names(), y='Quantidade de alunos')
+ggplotly(g12)
+```
+
+
+
+Row {.tabset}
+-----------------------------------------------------------------------
+
+### UF x Situação
+
+```{r}
+g15 <- df |>
+    mutate(UF = UF |> fct_infreq() |> fct_rev()) |>
+    grafico(UF,Situação)
+g15 <- g15 + coord_flip() 
+ggplotly(g15)
+```
+
+### Proporcionalidade - Norte
+
+
+```{r}
+g15 <- df |> 
+  subset(CO_REGIAO == 1) |>
+  ggplot(aes(x=UF1, fill = Situação)) + 
+  geom_bar(position="fill") + 
+  scale_fill_brewer(palette = "Set2")+
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank()) +
+    labs(x='Mobilidade', y='Quantidade de alunos')
+ggplotly(g15)
+```
+
+### Nordeste
+
+```{r}
+g16 <- df |> 
+  subset(CO_REGIAO == 2) |>
+  ggplot(aes(x=UF1, fill = Situação)) + 
+  geom_bar(position="fill") + 
+  scale_fill_brewer(palette = "Set2")+
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank()) +
+    labs(x='Mobilidade', y='Quantidade de alunos')
+ggplotly(g16)
+```
+### Sudeste
+
+```{r}
+g17 <- df |> 
+  subset(CO_REGIAO == 3) |>
+  ggplot(aes(Situação, fill=Situação)) + 
+  geom_bar()+
+  scale_fill_brewer(palette = "Set2")+
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank(), legend.position="none") +
+  facet_wrap(~UF, ncol = 1, scales="free_y") +
+    labs(x=df|>
+         select(Situação) |> 
+         names(), y='Quantidade de alunos')
+ggplotly(g17)
+```
+
+### Sul
+
+```{r}
+g18 <- df |> 
+  subset(CO_REGIAO == 4) |>
+  ggplot(aes(Situação, fill=Situação)) + 
+  geom_bar()+
+  scale_fill_brewer(palette = "Set2")+
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank(), legend.position="none") +
+  facet_wrap(~UF, ncol = 1, scales="free_y") +
+    labs(x=df|>
+         select(Situação) |> 
+         names(), y='Quantidade de alunos')
+ggplotly(g18)
+```
+
+### Centro-oeste
+
+```{r}
+g19 <- df |> 
+  subset(CO_REGIAO == 5) |>
+  ggplot(aes(Situação, fill=Situação)) + 
+  geom_bar()+
+  scale_fill_brewer(palette = "Set2")+
+  theme(
+     panel.grid.major.x = element_blank(),
+     panel.grid.minor.x = element_blank(), legend.position="none") +
+  facet_wrap(~UF, ncol = 1, scales="free_y") +
+    labs(x=df|>
+         select(Situação) |> 
+         names(), y='Quantidade de alunos')
+ggplotly(g19)
+```
+
+
+# Mapas
+Row {.tabset}
+-----------------------------------------------------------------------
+
+### Quantidade de alunos por Região
+
+```{r}
+df5<-df2[order(as.character(df2$Região)),]
+
+regions <- geojsonio::geojson_read("libs/grandes_regioes_json.geojson", what = "sp")
+regions$n <- df5$n
+regions$Percento <- df5$EvasãoPercentual
+bins <- c(1000, 5000, 10000, 15000, 20000, 40000, 60000)
+pal <- colorBin("YlOrRd", domain = regions@data[["n"]], bins = bins)
+a <- '%'
+link <- 'https://pt.wikipedia.org/wiki/'
+labels <- sprintf(
+  "<strong>%s</strong><br/>%d alunos<br/> %g%s de Evasão", 
+regions@data[["NOME1"]],regions@data[["n"]], regions@data[["Percento"]], a) %>% 
+  lapply(htmltools::HTML)
+
+
+leaflet(regions) %>%
+  setView(-47.93, -15.78, 3.2) %>%
+  addTiles() %>% 
+  addPolygons(fillColor = ~pal(regions@data[["n"]]),
+              weight = 2,
+              opacity = 1,
+              color = "white",
+              dashArray = "3",
+              fillOpacity = 0.7, 
+              highlight = highlightOptions(weight = 5,
+                                           color = "#666",
+                                           dashArray = "",
+                                           fillOpacity = 0.7,
+                                           bringToFront = TRUE),
+              label = labels,
+              labelOptions = labelOptions(style = list("font-weight" = "normal", padding = "3px 8px"),
+                                          textsize = "15px",
+                                          direction = "auto"), popup = ~paste0( "Região:"
+                 , regions@data[["NOME1"]]
+                 , "<br>"
+                 , "<a href='"
+                 , link,regions@data[["NOME1"]]
+                 , "' target='_blank'>"
+                 , "Clique aqui</a>" )) %>%
+  addLegend(pal = pal, values = ~regions@data[["n"]], opacity = 0.7, 
+            title = "Número de alunos", position = "bottomright")
+```
+
+### Evasão em % por Região
+
+
+```{r}
+
+bins <- c(10, 12, 15, 18, 20)
+pal <- colorBin("YlOrRd", domain = regions@data[["Percento"]], bins = bins)
+
+
+leaflet(regions) %>%
+  setView(-47.93, -15.78, 3.2) %>%
+  addTiles() %>% 
+  addPolygons(fillColor = ~pal(regions@data[["Percento"]]),
+              weight = 2,
+              opacity = 1,
+              color = "white",
+              dashArray = "3",
+              fillOpacity = 0.7, 
+              highlight = highlightOptions(weight = 5,
+                                           color = "#666",
+                                           dashArray = "",
+                                           fillOpacity = 0.7,
+                                           bringToFront = TRUE),
+              label = labels,
+              labelOptions = labelOptions(style = list("font-weight" = "normal", padding = "3px 8px"),
+                                          textsize = "15px",
+                                          direction = "auto"), popup = ~paste0( "Região:"
+                 , regions@data[["NOME1"]]
+                 , "<br>"
+                 , "<a href='"
+                 , link,regions@data[["NOME1"]]
+                 , "' target='_blank'>"
+                 , "Clique aqui</a>" )) %>%
+  addLegend(pal = pal, values = ~regions@data[["Percento"]], opacity = 0.7, 
+            title = "Evasão", position = "bottomright", labFormat = labelFormat(suffix = "%", between="% &ndash; "))
+
+```
+
+Row {.tabset}
+-----------------------------------------------------------------------
+
+### Quantidade de alunos por UF
+
+```{r}
+df4<-df3[order(as.character(df3$UF)),]
+
+states <- geojsonio::geojson_read("libs/brazil_geo.json", what = "sp")
+states$n <- df4$n
+states$Percento <- df4$EvasãoPercentual
+a <- '%'
+bins <- c(100, 500, 1000, 1500, 2000, 4000, 6000, 10000, 40000)
+pal <- colorBin("YlOrRd", domain = states@data[["n"]], bins = bins)
+link <- 'https://pt.wikipedia.org/wiki/'
+
+labels <- sprintf(
+  "<strong>%s</strong><br/>%d alunos<br/> %g%s de Evasão", 
+states@data[["name"]],states@data[["n"]], states@data[["Percento"]], a
+) %>% 
+  lapply(htmltools::HTML)
+
+
+leaflet(states) %>%
+  setView(-47.93, -15.78, 3.2) %>%
+  addTiles() %>% 
+  addPolygons(fillColor = ~pal(states@data[["n"]]),
+              weight = 2,
+              opacity = 1,
+              color = "white",
+              dashArray = "3",
+              fillOpacity = 0.7, 
+              highlight = highlightOptions(weight = 5,
+                                           color = "#666",
+                                           dashArray = "",
+                                           fillOpacity = 0.7,
+                                           bringToFront = TRUE),
+              label = labels,
+              labelOptions = labelOptions(style = list("font-weight" = "normal", padding = "3px 8px"),
+                                          textsize = "15px",
+                                          direction = "auto"), popup = ~paste0( "Estado:"
+                 , states@data[["name"]] 
+                 , "<br>"
+                 , "<a href='"
+                 , paste0(link,states@data[["name"]])
+                 , "' target='_blank'>"
+                 , "Clique aqui</a>" )) %>%
+  addLegend(pal = pal, values = ~states@data[["n"]], opacity = 0.7, 
+            title = "Número de alunos", position = "bottomright")
+
+```
+
+### Evasão de % por UF
+
+
+```{r}
+
+bins <- c(1, 5, 7, 13, 18, 21, 24, 27, 36)
+pal <- colorBin("YlOrRd", domain = states@data[["Percento"]], bins = bins)
+
+
+leaflet(states) %>%
+  setView(-47.93, -15.78, 3.2) %>%
+  addTiles() %>% 
+  addPolygons(fillColor = ~pal(states@data[["Percento"]]),
+              weight = 2,
+              opacity = 1,
+              color = "white",
+              dashArray = "3",
+              fillOpacity = 0.7, 
+              highlight = highlightOptions(weight = 5,
+                                           color = "#666",
+                                           dashArray = "",
+                                           fillOpacity = 0.7,
+                                           bringToFront = TRUE),
+              label = labels,
+              labelOptions = labelOptions(style = list("font-weight" = "normal", padding = "3px 8px"),
+                                          textsize = "15px",
+                                          direction = "auto"), popup = ~paste0( "Estado:"
+                 , states@data[["name"]] 
+                 , "<br>"
+                 , "<a href='"
+                 , link,states@data[["name"]]
+                 , "' target='_blank'>"
+                 , "Clique aqui</a>" )) %>%
+  addLegend(pal = pal, values = states@data[["Percento"]], opacity = 0.7, 
+            title = "Evasão", position = "bottomright", labFormat = labelFormat(suffix = "%", between="% &ndash; "))
+
+```
+
+
+# Sobre o estudo
+
+Inputs {.sidebar}
+-----------------------------------------------------------------------
+**Autores:**
+Alisson, Caroline e Vítor
+
+
+**E-mail's:**
+alirpereira887@gmail.com, carolcogo808@gmail.com & vitorpereira3115@gmail.com
+
+Esse relatório apresenta análise dos dados provenientes do Censo da Educação Superior do INEP com objetivo de verificar variáveis que podem influenciar na evasão dos alunos. O escopo dessa análise são os alunos do curso de Psicologia do Brasil que ingressaram no ano de 2019. 
+
+
+Row
+-----------------------------------------------------------------------
+
+### Banco de dados
+```{r}
+kable(df[0:10,c(2:8,10,16:17)]) |>
+  kable_styling(c('striped'))
+```
+
