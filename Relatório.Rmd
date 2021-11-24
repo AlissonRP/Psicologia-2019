@@ -539,6 +539,60 @@ Para estudantes de origem do mesmo estado onde está localizada a universidade, 
 
 [^1]:[Acesse o Censo aqui](https://www.gov.br/inep/pt-br/areas-de-atuacao/pesquisas-estatisticas-e-indicadores/censo-da-educacao-superior)
 
+\section{Parte do vitor}
+```{r}
+Associar <-function(df,v1,tipo){
+  ## tipo = o -> v1 é ordinal
+  ## tipo = nd -> v1 é nominal dicotômica
+  ## tipo = np -> v1 é nominal politômica
+  df <- drop_na(df, {{v1}})
+  if(tipo == "nd"){
+    Qp <- df %>%
+    select({{v1}},Situação) %>%
+    table() %>%
+    chisq.test(correct = F)
+    Asso <- df %>%
+      select({{v1}},Situação) %>%
+      table() %>%
+      epi.2by2(method = "cross.sectional")
+    lista <- list('Est' = Qp$statistic, 'p' = Qp$p.value,
+                  'RPrevalencia' = Asso$massoc.summary$est[1], 
+                  'RChance' = Asso$massoc.summary$est[2], 
+                  'ICPrevalencia' = c(Asso$massoc.summary$lower[1],
+                                      Asso$massoc.summary$upper[1]),
+                  'ICChance' = c(Asso$massoc.summary$lower[2],
+                                      Asso$massoc.summary$upper[2]))
+    return(lista)
+  }
+  
+  if(tipo == "np"){
+    Qp <- df %>%
+    select({{v1}},Situação) %>%
+    table() %>%
+    chisq.test(correct = F)
+    lista <- list('Est' = Qp$statistic, 'p' = Qp$p.value)
+    return(lista)
+  }
+  
+  if(tipo == "o"){
+    y <- df %>% 
+    mutate(Evadido=fct_recode(Situação,"0"="Retido","1"="Evadido")) %>%
+      select(Evadido)
+    x <- df %>%
+      mutate(Idade=fct_recode(Idade,"1"="[15,18]", "2" = "(18,21]", "3" = "(21,25]", 
+                              "4" = "(30,65]", "5" = "(65,90]")) %>%
+      select(Idade)
+    rac<-cor(x,y)
+    n1<- length(y)
+    qcs<-(n1-1)*rac^2
+    p<-1-pchisq(qcs,1)  
+    lista <- list('Est' = qcs, 'p' = p)
+    return(lista)
+  }}
+
+
+```
+
 
 \section{Modelagem}
 Nesta seção, iremos ajustar uma regressão logística  e floresta aleatória, temos como variável a ser predita se o estudante vai estar retido no curso, ou vai evadir, utiliza-se como covariáveis o **sexo**, **nacionalidade** e **turno** do estudante. Como observado na tabela  \@ref(tab:freqsit) tem-se que as observações nas categorias da variável resposta são muito desequilibradas, portanto a acurácia (accuracy) não será uma boa métrica para a escolha dos hiperparâmetros, assim escolhe-se a área da curva roc como métrica.
@@ -685,7 +739,13 @@ fit1=df_tuner %>%
 fitt2=fit2 %>%  
   predict(new_data = df_test, type = "prob") %>% 
   bind_cols(df_test) %>%  
+<<<<<<< HEAD
+  p(0.813) 
+  
+
+=======
   p(0.807) 
+>>>>>>> f585e7c305b9b2b54bfe9541c783b85f65788d64
   
 
 
@@ -711,7 +771,11 @@ fitt1=fit1 %>%
 
 
 \subsection{Regressão Logística}
+<<<<<<< HEAD
+A regressão logistica foi necessário tomar como $0.808$ o ponto corte para a previsão ser da categória Retido, pois como já dito existem muitas observações para essa categoria. Ajustando no conjunto de treino obtem-se como única variáve não significativa a dummie Nacionalidade  Estrangeira que tem como p-valor associado `r round(tidy(fit1)[4,5],3)`
+=======
 Para a regressão logística foi necessário tomar como $0.808$ o ponto de corte, assim a previsão será da categoria Retido, pois como já dito existem muitas observações para essa categoria. Ajustando no conjunto de treino obtém-se como única variável não significativa a dummie Nacionalidade Estrangeira que tem como p-valor associado `r round(tidy(fit1)[4,5],3)`, o seguinte gráfico ilustra o ajuste sobre o modelo logístico, indicando que está bem ajustado inferencialmente, dado que todos resíduos estão dentro da banda simulada.
+>>>>>>> f585e7c305b9b2b54bfe9541c783b85f65788d64
 
 ```{r}
 hnp::hnp(fit1$fit$fit$fit)
@@ -720,7 +784,11 @@ hnp::hnp(fit1$fit$fit$fit)
 
 
 
+<<<<<<< HEAD
+Testando no conjunto de teste que possui `r nrow(df_test)` e deixando como padrão (0.5), a acurácia nos dados de teste é `r fitt1 %>% p(0.5) %>% accuracy(sit,.pred_class) %>% .[1,3] %>% round(3)`, poderia-se cair em tentanção e dizer que é um bom modelo, mas vejamos a matriz de confusão:
+=======
 Testando no conjunto de teste que possui `r nrow(df_test)` observações e deixando  o ponto de corte  padrão (0.5), a acurácia nos dados de teste é `r fitt1 %>% p(0.5) %>% accuracy(sit,.pred_class) %>% .[1,3] %>% round(3)`, poderia-se cair em tentanção e dizer que é um bom modelo, mas vejamos a matriz de confusão:
+>>>>>>> f585e7c305b9b2b54bfe9541c783b85f65788d64
 
 ```{r}
 fitt1 %>% 
@@ -733,9 +801,30 @@ Todas as previsões foram Retido!!, ou seja o modelo está completamente viesado
 fitt1 %>% 
   conf_table(0.808,"Matriz de Confusão com ponte de corte 0.808")
 ```
+<<<<<<< HEAD
+```{r}
+
+```
 
 
 
+\subsection{Random Forest}
+O fenomeno de predizer todos como retido, também acontece na random forest, portanto o ponto de corte foi ajustado para 
+$0.81$, assim obtendo-se area sobre a curva roc igual a `r fitt2 %>% p(0.81) %>% roc_auc(sit,.pred_Retido) %>% .[1,3] %>% round(3)`  e acurácia `r fitt2 %>% p(0.81) %>% accuracy(sit,.pred_class) %>% .[1,3] %>% round(3)`. O seguinte gráfico fornece  as variáveis mais importantes no conjunto de treino
+
+```{r}
+fit2 %>% 
+extract_fit_parsnip() %>% 
+  vip::vip(num_features = 10)
+```
+
+
+ 
+=======
+
+
+
+>>>>>>> f585e7c305b9b2b54bfe9541c783b85f65788d64
 
 
 \subsection{Random Forest}

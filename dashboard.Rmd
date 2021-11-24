@@ -1,7 +1,9 @@
 ---
 title: "Psicologia"
 output: 
-  flexdashboard::flex_dashboard
+  flexdashboard::flex_dashboard:
+   theme: cerulean
+   
 ---
 
 ```{r setup, include=FALSE}
@@ -13,11 +15,13 @@ library(readxl)
 library(sqldf)
 library(plotly)
 library(kableExtra)
+theme_set(theme_minimal())
+scale_fill_discrete = \(...) scale_fill_brewer(... , palette="Set2")
 gc()
 memory.limit (9999999999)
 rm(list=ls())
 gc()
-df=read_csv("ALUNO_PSICO2019.CSV")
+df=read_csv("https://raw.githubusercontent.com/AlissonRP/Psicologia-2019/master/ALUNO_PSICO2019.csv")
 df = df |> 
     mutate(NU_IDADE=as.integer(NU_IDADE),CO_IES= as.integer(CO_IES),
            Classe_Idade=cut(NU_IDADE,breaks=c(15,18,21,25,30,65,90),
@@ -91,7 +95,6 @@ grafico=function(df,v1,v2){
 df |> 
   ggplot(aes({{v1}},fill={{v2}})) + 
   geom_bar(position = "dodge")+
-  scale_fill_brewer(palette = "Set2")+
   theme(
      panel.grid.major.x = element_blank(),
      panel.grid.minor.x = element_blank()) +
@@ -501,8 +504,6 @@ Inputs {.sidebar}
 **Autores:**
 Alisson, Caroline e Vítor
 
-**Matrículas:**
-201812317,201810217 & 201810422
 
 **E-mail's:**
 alirpereira887@gmail.com, carolcogo808@gmail.com & vitorpereira3115@gmail.com
